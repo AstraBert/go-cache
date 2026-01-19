@@ -55,5 +55,5 @@ func (c *Cache) GetAll() map[string]any {
 func (c *Cache) SetAll(data map[string]any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	maps.Copy(data, c.Data)
+	maps.Copy(c.Data, data)
 }
