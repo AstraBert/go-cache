@@ -1,11 +1,14 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
+	"context"
 	"log"
 	"net/http"
-	"slices"
+	"os"
+	"os/signal"
+	"sync"
+	"syscall"
+	"time"
 )
 
 type SetRequest struct {
@@ -24,91 +27,49 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	server := http.NewServeMux()
-	server.HandleFunc("POST /cache", func(w http.ResponseWriter, r *http.Request) {
-		var req SetRequest
-		err := json.NewDecoder(r.Body).Decode(&req)
-		if err != nil {
-			http.Error(
-				w,
-				fmt.Sprintf("An error occurred while reading your request: %s", err.Error()),
-				http.StatusBadRequest,
-			)
-			return
-		}
-		err = walfile.WriteRecord(req.Key, req.Value, req.Ttl)
-		if err != nil {
-			http.Error(
-				w,
-				fmt.Sprintf("An error occurred while recording your entry: %s", err.Error()),
-				http.StatusInternalServerError,
-			)
-			return
-		}
-		w.WriteHeader(http.StatusCreated)
-	})
-	server.HandleFunc("GET /cache/{key}", func(w http.ResponseWriter, r *http.Request) {
-		key := r.PathValue("key")
-		if key == "" {
-			http.Error(
-				w,
-				"Provided key was empty, please provide a non-empty key",
-				http.StatusBadRequest,
-			)
-			return
-		}
-		val, err := cache.Get(key)
-		if err != nil {
-			http.Error(
-				w,
-				err.Error(),
-				http.StatusNotFound,
-			)
-			return
-		}
-		apiResponse := GetResponse{Value: val}
-		w.Header().Set("Content-Type", "application/json")
-		j, err := json.Marshal(apiResponse)
-		if err != nil {
-			http.Error(
-				w,
-				err.Error(),
-				http.StatusInternalServerError,
-			)
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write(j)
-	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan os.Signal, 1)
+	signal.Notify(done, os.Interrupt, syscall.SIGINT)
+
+	server := &http.Server{
+		Addr:    ":8000",
+		Handler: CreateHandler(cache, walfile),
+	}
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
 	go func() {
-		for {
-			data, err := walfile.ReadToEntries()
-			if err != nil {
-				log.Printf("An error occurred while trying to read WAL file: %s\n", err.Error())
-				continue
-			}
-			cachedData := cache.GetAll()
-			if slices.EqualFunc(data, cachedData, func(a CacheEntry, b CacheEntry) bool {
-				return a.Key == b.Key && a.Value == b.Value && *a.Ttl == *b.Ttl && a.Timestamp == b.Timestamp
-			}) {
-				continue
-			} else {
-				cache.SetAll(data)
-				log.Println("Synced in-memory cache with WAL file")
-			}
+		defer wg.Done()
+		WalSyncWorker(walfile, cache, done, ctx)
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		DedupWorker(walfile, done, ctx)
+	}()
+
+	// Start server in a goroutine
+	go func() {
+		log.Println("starting server on :8000")
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("Server error: %s\n", err)
 		}
 	}()
 
-	go func() {
-		for {
-			err := walfile.Dedup()
-			if err != nil {
-				log.Printf("An error occurred during deduplication: %s\n", err.Error())
-				continue
-			}
-		}
-	}()
-	log.Print("starting server on :8000")
+	<-done
+	log.Println("Shutting down server and workers...")
 
-	err = http.ListenAndServe(":8000", server)
-	log.Fatal(err)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("Server shutdown error: %s\n", err)
+	}
+	cancel()
+	wg.Wait()
+	log.Println("Application stopped")
 }

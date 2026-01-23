@@ -15,6 +15,7 @@ type WalFile struct {
 	mu          sync.RWMutex
 	FilePath    string
 	lastDataLen int
+	numUpdated  int
 }
 
 func newWalFile(filePath string) (*WalFile, error) {
@@ -93,10 +94,6 @@ func (f *WalFile) Dedup() error {
 	if err != nil {
 		return err
 	}
-	if len(data) == f.lastDataLen {
-		return nil
-	}
-	f.lastDataLen = len(data)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	// descending order by timestamp (newest first)
@@ -126,5 +123,10 @@ func (f *WalFile) Dedup() error {
 		bytedata = append(bytedata, '\n')
 		towrite = append(towrite, bytedata...)
 	}
+	if len(processedKeys) == f.lastDataLen && f.numUpdated != 0 {
+		return nil
+	}
+	f.lastDataLen = len(processedKeys)
+	f.numUpdated++
 	return os.WriteFile(f.FilePath, towrite, 0644)
 }
