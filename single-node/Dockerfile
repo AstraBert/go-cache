@@ -1,6 +1,6 @@
 FROM golang:1.24-bookworm AS builder
 WORKDIR /build
-COPY go.mod ./
+COPY go.mod go.sum ./
 RUN go mod download
 COPY *.go ./
 RUN go build -tags netgo -ldflags '-s -w' -o server

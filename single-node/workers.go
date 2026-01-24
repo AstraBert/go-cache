@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"slices"
+	"sort"
 	"time"
 )
 
@@ -29,6 +30,15 @@ func WalSyncWorker(walfile *WalFile, cache *Cache, done <-chan os.Signal, ctx co
 			}) {
 				continue
 			} else {
+				if len(data) > cache.MaxSize && cache.MaxSize > 0 {
+					// sort ascending (oldest first) to exclude the newest requests
+					// oldest entry will then be eliminated by TTL, and newest entries (if not already
+					// expired), will be set in-memory (dedup + sync)
+					sort.Slice(data, func(i, j int) bool {
+						return data[i].Timestamp < data[j].Timestamp
+					})
+					data = data[:cache.MaxSize]
+				}
 				cache.SetAll(data)
 				log.Println("Synced in-memory cache with WAL file")
 			}

@@ -2,10 +2,14 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"slices"
+	"strconv"
 	"sync"
 	"time"
 )
+
+const DEFAULT_MAX_SIZE int = 0
 
 type NotExistError struct {
 	key string
@@ -36,6 +40,7 @@ type Cache struct {
 	mu      sync.RWMutex
 	Data    []CacheEntry
 	DataMap map[string]int
+	MaxSize int
 }
 
 func newNotExistError(key string) NotExistError {
@@ -52,10 +57,23 @@ func newCacheEntry(key string, value any, ttl *int) CacheEntry {
 }
 
 func newCache() *Cache {
+	var maxSize int
+	ms, ok := os.LookupEnv("MAX_CACHE_SIZE")
+	if ok {
+		typedMs, err := strconv.Atoi(ms)
+		if err != nil {
+			maxSize = DEFAULT_MAX_SIZE
+		} else {
+			maxSize = typedMs
+		}
+	} else {
+		maxSize = DEFAULT_MAX_SIZE
+	}
 	return &Cache{
 		mu:      sync.RWMutex{},
 		Data:    []CacheEntry{},
 		DataMap: map[string]int{},
+		MaxSize: maxSize,
 	}
 }
 

@@ -4,15 +4,13 @@ Single and distributed key-value store built with Go.
 
 ## Main features (single node)
 
-> Some features still need to be implemented (marked as not complete)
-
 - [X] TTL-based caching
 - [X] `POST /cache` and `GET /cache/{key}` endpoints.
 - [X] Containerized image with Docker  
 - [X] Persisten Disk caching: entries are first written to disk and then synced to memory (using concurrent workers with mutexes). In this way, if the server crashes, the disk will always have the latest version of stored key-value pairs
 - [X] TTL- and key-based deduplication: as a rule, the cache accepts multiple `POST /cache` request with the same key and different values, holding in memory only the newest one. The disk, tho, could potentially hold all of them: that's why we deduplicate every second (using a concurrent worker). The deduplication worker gets rid also of the expired entries.
-- [ ] Max cache size with TTL-based eviction policy
-- [ ] Rate limiting
+- [X] Max cache size with TTL-based eviction policy
+- [X] Rate limiting
 
 ### Usage
 
@@ -26,8 +24,18 @@ docker build . -t single-node-cache
 Run:
 
 ```bash
-docker run -p 8000:8000 single-node-cache
+docker run -p 8000:8000 \
+    --env MAX_CACHE_SIZE=1000 \
+    --env CACHE_RATE_LIMIT_GET=30000 \
+    --env CACHE_RATE_LIMIT_SET=3000 \
+    single-node-cache
 ```
+
+As you can see, you can set:
+
+- the maximum size of the cache (`MAX_CACHE_SIZE`). Setting the maximum size to 0 or less will result in an infinite size.
+- the maximum number of POST requests to the cache in a minute (`CACHE_RATE_LIMIT_SET`)
+- the maximum number of GET requests to the cache in a minute (`CACHE_RATE_LIMIT_GET`)
 
 Send requests:
 
