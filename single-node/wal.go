@@ -1,4 +1,4 @@
-package main
+package singlenode
 
 import (
 	"encoding/json"
@@ -38,7 +38,7 @@ func newWalFile(filePath string) (*WalFile, error) {
 	}, nil
 }
 
-func (f *WalFile) WriteRecord(key string, value any, ttl *int) error {
+func (f *WalFile) WriteRecord(key string, value any, ttl *float64) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -106,7 +106,7 @@ func (f *WalFile) Dedup() error {
 		// if the entry is expired, skip
 		if entry.Ttl != nil {
 			now := time.Now().Unix()
-			if (now - entry.Timestamp) > int64(*entry.Ttl) {
+			if float64((now - entry.Timestamp)) > *entry.Ttl {
 				continue
 			}
 		}

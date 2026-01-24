@@ -1,4 +1,4 @@
-package main
+package singlenode
 
 import (
 	"context"
@@ -26,7 +26,11 @@ func WalSyncWorker(walfile *WalFile, cache *Cache, done <-chan os.Signal, ctx co
 			}
 			cachedData := cache.GetAll()
 			if slices.EqualFunc(data, cachedData, func(a CacheEntry, b CacheEntry) bool {
-				return a.Key == b.Key && a.Value == b.Value && *a.Ttl == *b.Ttl && a.Timestamp == b.Timestamp
+				if a.Ttl != nil && b.Ttl != nil {
+					return a.Key == b.Key && a.Value == b.Value && *a.Ttl == *b.Ttl && a.Timestamp == b.Timestamp
+				} else {
+					return a.Key == b.Key && a.Value == b.Value && a.Timestamp == b.Timestamp
+				}
 			}) {
 				continue
 			} else {

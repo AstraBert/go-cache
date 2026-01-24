@@ -1,4 +1,4 @@
-package main
+package singlenode
 
 import (
 	"encoding/json"
@@ -14,6 +14,16 @@ import (
 
 const DEFAULT_GET_RATE_LIMIT = 10000
 const DEFAULT_POST_RATE_LIMIT = 1000
+
+type SetRequest struct {
+	Key   string   `json:"key"`
+	Value any      `json:"value"`
+	Ttl   *float64 `json:"ttl"`
+}
+
+type GetResponse struct {
+	Value any `json:"value"`
+}
 
 func handlePost(walfile *WalFile, cache *Cache, w http.ResponseWriter, r *http.Request) {
 	var req SetRequest

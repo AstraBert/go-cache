@@ -1,4 +1,4 @@
-package main
+package singlenode
 
 import (
 	"context"
@@ -10,16 +10,6 @@ import (
 	"syscall"
 	"time"
 )
-
-type SetRequest struct {
-	Key   string `json:"key"`
-	Value any    `json:"value"`
-	Ttl   *int   `json:"ttl"`
-}
-
-type GetResponse struct {
-	Value any `json:"value"`
-}
 
 func main() {
 	cache := newCache()
