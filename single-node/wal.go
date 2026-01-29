@@ -106,13 +106,13 @@ func (f *WalFile) Dedup() error {
 		// if the entry is expired, skip
 		if entry.Ttl != nil {
 			now := time.Now().Unix()
-			if float64((now - entry.Timestamp)) > *entry.Ttl {
+			if float64((now - entry.Timestamp)) >= *entry.Ttl {
 				continue
 			}
 		}
 		// if the an already processed entry is more recent, skip
 		timestamp, ok := processedKeys[entry.Key]
-		if ok && timestamp > entry.Timestamp {
+		if ok && timestamp >= entry.Timestamp {
 			continue
 		}
 		processedKeys[entry.Key] = entry.Timestamp

@@ -71,7 +71,7 @@ func TestCache(t *testing.T) {
 	}
 }
 
-func TestCacheRaceConditions(t *testing.T) {
+func TestCacheRaceConditionsGetSet(t *testing.T) {
 	cache := newCache()
 
 	var wg sync.WaitGroup
@@ -94,6 +94,38 @@ func TestCacheRaceConditions(t *testing.T) {
 			for j := range 100 {
 				key := fmt.Sprintf("key-%d-%d", id%5, j)
 				cache.Get(key)
+			}
+		}(i)
+	}
+
+	wg.Wait()
+}
+
+func TestCacheRaceConditionsGetAllSetAll(t *testing.T) {
+	cache := newCache()
+
+	var wg sync.WaitGroup
+
+	for i := range 10 {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			data := []CacheEntry{}
+			for j := range 100 {
+				key := fmt.Sprintf("key-%d-%d", id, j)
+				val := j
+				data = append(data, newCacheEntry(key, val, nil))
+				cache.SetAll(data)
+			}
+		}(i)
+	}
+
+	for i := range 10 {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			for range 100 {
+				cache.GetAll()
 			}
 		}(i)
 	}
